@@ -76,7 +76,7 @@ func TestDefaultLogger(t *testing.T) {
 	dl.Error(context.Background(), "lololol", ErrNotFound)
 	check("level=ERROR msg=lololol err=\"cache233: the entry was not found in the data source\"")
 	dl.Warn(context.Background(), "qokpokp", fmt.Errorf("gol: %w", ErrNotFound))
-	check("level=WARN msg=qokpokp err=\"gol: otter: the entry was not found in the data source\"")
+	check("level=WARN msg=qokpokp err=\"gol: cache233: the entry was not found in the data source\"")
 }
 
 func TestNoopLogger(t *testing.T) {

@@ -1,0 +1,13 @@
+# Build and test artifacts
+*.test
+*.out
+*.prof
+coverage.out
+/bin/
+/dist/
+
+# Local tooling
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

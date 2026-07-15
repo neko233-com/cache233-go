@@ -22,29 +22,61 @@ type Rank[K comparable] struct {
 	Position int
 }
 
+// Change describes a successful score mutation and whether it remains in the board.
+type Change[K comparable] struct {
+	Member   K
+	Score    float64
+	Retained bool
+}
+
+// Config provides normalization and event hooks for domain rules such as score
+// caps, season multipliers, audit events, or external leaderboard replication.
+type Config[K comparable] struct {
+	Capacity  int
+	Normalize func(K, float64) (float64, error)
+	OnChange  func(Change[K])
+}
+
 // Board retains at most the highest-scoring capacity members.
 type Board[K comparable] struct {
-	mu       sync.RWMutex
-	capacity int
-	scores   map[K]float64
+	mu        sync.RWMutex
+	capacity  int
+	scores    map[K]float64
+	normalize func(K, float64) (float64, error)
+	onChange  func(Change[K])
 }
 
 func New[K comparable](capacity int) (*Board[K], error) {
-	if capacity <= 0 {
+	return NewWithConfig(Config[K]{Capacity: capacity})
+}
+
+func NewWithConfig[K comparable](config Config[K]) (*Board[K], error) {
+	if config.Capacity <= 0 {
 		return nil, ErrInvalidCapacity
 	}
-	return &Board[K]{capacity: capacity, scores: make(map[K]float64)}, nil
+	return &Board[K]{capacity: config.Capacity, scores: make(map[K]float64), normalize: config.Normalize, onChange: config.OnChange}, nil
 }
 
 // Set assigns a score. Members outside the top capacity are not retained.
 func (b *Board[K]) Set(member K, score float64) error {
+	if b.normalize != nil {
+		var err error
+		score, err = b.normalize(member, score)
+		if err != nil {
+			return err
+		}
+	}
 	if math.IsNaN(score) {
 		return ErrInvalidScore
 	}
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	b.scores[member] = score
 	b.trimLocked()
+	_, retained := b.scores[member]
+	b.mu.Unlock()
+	if b.onChange != nil {
+		b.onChange(Change[K]{Member: member, Score: score, Retained: retained})
+	}
 	return nil
 }
 
@@ -54,13 +86,26 @@ func (b *Board[K]) Add(member K, delta float64) (float64, error) {
 		return 0, ErrInvalidScore
 	}
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	score := b.scores[member] + delta
+	if b.normalize != nil {
+		var err error
+		score, err = b.normalize(member, score)
+		if err != nil {
+			b.mu.Unlock()
+			return 0, err
+		}
+	}
 	if math.IsNaN(score) {
+		b.mu.Unlock()
 		return 0, ErrInvalidScore
 	}
 	b.scores[member] = score
 	b.trimLocked()
+	_, retained := b.scores[member]
+	b.mu.Unlock()
+	if b.onChange != nil {
+		b.onChange(Change[K]{Member: member, Score: score, Retained: retained})
+	}
 	return score, nil
 }
 func (b *Board[K]) Remove(member K) { b.mu.Lock(); defer b.mu.Unlock(); delete(b.scores, member) }

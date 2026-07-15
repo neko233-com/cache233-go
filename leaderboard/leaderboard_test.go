@@ -20,3 +20,24 @@ func TestBoardKeepsTopScores(t *testing.T) {
 		t.Fatal("lowest member should be pruned")
 	}
 }
+
+func TestBoardExtensionHooks(t *testing.T) {
+	changes := 0
+	b, err := NewWithConfig(Config[string]{Capacity: 2, Normalize: func(_ string, score float64) (float64, error) {
+		if score > 100 {
+			return 100, nil
+		}
+		return score, nil
+	}, OnChange: func(change Change[string]) {
+		changes++
+		if change.Score != 100 {
+			t.Fatalf("unexpected score: %v", change.Score)
+		}
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Set("a", 500); err != nil || changes != 1 {
+		t.Fatal("extension hooks failed")
+	}
+}

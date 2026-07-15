@@ -14,6 +14,8 @@ A high-performance in-memory caching library for Go, based on [Otter v2](https:/
 - Write propagation to external resources
 - Cache access statistics
 - Persistence (save/load from file)
+- Bounded leaderboards via `leaderboard.Board`
+- Recent chat-message caches via `chat.Store`
 
 ## Installation
 
